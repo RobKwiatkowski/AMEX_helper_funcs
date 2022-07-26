@@ -131,3 +131,7 @@ dmypy.json
 /src/data/train.parquet
 /src/outputs/final_dfs/test_df.parquet
 /src/outputs/final_dfs/train_df.parquet
+/src/outputs/df_cats.csv
+/src/outputs/df_date.csv
+/src/outputs/df_nums.csv
+/src/outputs/df_sums.csv

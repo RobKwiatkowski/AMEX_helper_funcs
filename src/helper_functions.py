@@ -241,26 +241,26 @@ def sum_common_cols(df):
                'spend_sum', 'payment_sum', 'risk_sum']].groupby('customer_ID').sum()
 
 
-def round():
-    num_cols = list(train.dtypes[(train.dtypes == 'float32') | (train.dtypes == 'float64')].index)
-    num_cols = [col for col in num_cols if 'last' in col]
-    for col in num_cols:
-        train[col + '_round2'] = train[col].round(2)
-        test[col + '_round2'] = test[col].round(2)
-
-
-def get_differences():
-    num_cols = [col for col in train.columns if 'last' in col]
-    num_cols = [col[:-5] for col in num_cols if 'round' not in col]
-    for col in num_cols:
-        try:
-            train[f'{col}_last_mean_diff'] = train[f'{col}_last'] - train[f'{col}_mean']
-            test[f'{col}_last_mean_diff'] = test[f'{col}_last'] - test[f'{col}_mean']
-        except:
-            pass
-
-def transform_floats():
-    num_cols = list(train.dtypes[(train.dtypes == 'float32') | (train.dtypes == 'float64')].index)
-    for col in tqdm(num_cols):
-        train[col] = train[col].astype(np.float16)
-        test[col] = test[col].astype(np.float16)
+# def round():
+#     num_cols = list(train.dtypes[(train.dtypes == 'float32') | (train.dtypes == 'float64')].index)
+#     num_cols = [col for col in num_cols if 'last' in col]
+#     for col in num_cols:
+#         train[col + '_round2'] = train[col].round(2)
+#         test[col + '_round2'] = test[col].round(2)
+#
+#
+# def get_differences():
+#     num_cols = [col for col in train.columns if 'last' in col]
+#     num_cols = [col[:-5] for col in num_cols if 'round' not in col]
+#     for col in num_cols:
+#         try:
+#             train[f'{col}_last_mean_diff'] = train[f'{col}_last'] - train[f'{col}_mean']
+#             test[f'{col}_last_mean_diff'] = test[f'{col}_last'] - test[f'{col}_mean']
+#         except:
+#             pass
+#
+# def transform_floats():
+#     num_cols = list(train.dtypes[(train.dtypes == 'float32') | (train.dtypes == 'float64')].index)
+#     for col in tqdm(num_cols):
+#         train[col] = train[col].astype(np.float16)
+#         test[col] = test[col].astype(np.float16)

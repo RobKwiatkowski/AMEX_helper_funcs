@@ -5,7 +5,6 @@ import random
 import numpy as np
 import pandas as pd
 import joblib
-from src.helper_functions import read_data
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import LabelEncoder
 import lightgbm as lgb
@@ -60,15 +59,7 @@ def lgb_amex_metric(y_pred, y_true):
 
 
 # Train & Evaluate
-def train_and_evaluate(train, test):
-    # Label encode categorical features
-    cat_features = ["B_30", "B_38", "D_114", "D_116", "D_117", "D_120", "D_126", "D_63", "D_64", "D_66", "D_68"]
-    cat_features = [f"{cf}_last" for cf in cat_features]
-    for cat_col in cat_features:
-        encoder = LabelEncoder()
-        train[cat_col] = encoder.fit_transform(train[cat_col])
-        test[cat_col] = encoder.transform(test[cat_col])
-
+def run_lgbm(train, test):
     # Get feature list
     features = [col for col in train.columns if col not in ['customer_ID', CFG.target]]
     params = {
@@ -90,14 +81,17 @@ def train_and_evaluate(train, test):
     # Create a numpy array to store out of folds predictions
     oof_predictions = np.zeros(len(train))
     kfold = StratifiedKFold(n_splits=CFG.n_folds, shuffle=True, random_state=CFG.seed)
+    print('Running LGBM model')
     for fold, (trn_ind, val_ind) in enumerate(kfold.split(train, train[CFG.target])):
         print(' ')
         print('-' * 50)
         print(f'Training fold {fold} with {len(features)} features...')
         x_train, x_val = train[features].iloc[trn_ind], train[features].iloc[val_ind]
         y_train, y_val = train[CFG.target].iloc[trn_ind], train[CFG.target].iloc[val_ind]
-        lgb_train = lgb.Dataset(x_train, y_train, categorical_feature=cat_features)
-        lgb_valid = lgb.Dataset(x_val, y_val, categorical_feature=cat_features)
+        # lgb_train = lgb.Dataset(x_train, y_train, categorical_feature=cat_features)
+        # lgb_valid = lgb.Dataset(x_val, y_val, categorical_feature=cat_features)
+        lgb_train = lgb.Dataset(x_train, y_train)
+        lgb_valid = lgb.Dataset(x_val, y_val)
         model = lgb.train(
             params=params,
             train_set=lgb_train,
@@ -129,11 +123,24 @@ def train_and_evaluate(train, test):
     oof_df = pd.DataFrame({'customer_ID': train.index, 'target': train[CFG.target], 'prediction': oof_predictions})
     oof_df.to_csv(f'/outputs/oof_lgbm_{CFG.boosting_type}_baseline_{CFG.n_folds}fold_seed{CFG.seed}.csv', index=False)
     # Create a dataframe to store test prediction
-    test_df = pd.DataFrame({'customer_ID': test.index, 'prediction': test_predictions})
-    test_df.to_csv(f'outputs/test_lgbm_{CFG.boosting_type}_baseline_{CFG.n_folds}fold_seed{CFG.seed}.csv', index=False)
+    test_pred = pd.DataFrame({'customer_ID': test.index, 'prediction': test_predictions})
+    test_pred.to_csv(f'outputs/test_lgbm_{CFG.boosting_type}_baseline_{CFG.n_folds}fold_seed{CFG.seed}.csv', index=False)
 
 
 seed_everything(CFG.seed)
-train = read_data(CFG.input_dir + 'train_df.parquet')
-test = read_data(CFG.input_dir + 'test_df.parquet')
-train_and_evaluate(train, test)
+print("Reading input data...")
+train_df = pd.read_parquet(CFG.input_dir + 'train_df.parquet')
+print("Training data read")
+test_df = pd.read_parquet(CFG.input_dir + 'test_df.parquet')
+print("Testing data read")
+
+# Label encode categorical features
+# print('Encoding categorical data')
+# cat_features = ["B_30", "B_38", "D_114", "D_116", "D_117", "D_120", "D_126", "D_63", "D_64", "D_66", "D_68"]
+
+# for cat_col in cat_features:
+#     encoder = LabelEncoder()
+#     # train_df[cat_col] = encoder.fit_transform(train_df[cat_col])
+#     test_df[cat_col] = encoder.transform(test_df[cat_col])
+
+run_lgbm(train_df, test_df)

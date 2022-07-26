@@ -7,14 +7,17 @@ if __name__ == '__main__':
     import helper_functions as hf
     from create_final_df import create_final, check_readiness
 
+    pd.options.display.width = None
+    pd.options.display.max_columns = 15
+
     class CFG:
-        train = False
-        sample = False
+        train = True
+        sample = True
 
     if CFG.train:
-        path = 'outputs/final_dfs/train_df.parquet'
+        path = 'data/train.parquet'
     else:
-        path = 'outputs/final_dfs/test_df.parquet'
+        path = 'data/test.parquet'
 
 
     def ewm(cols_to_use, parallel=True, periods=(2, 4)):
@@ -37,9 +40,6 @@ if __name__ == '__main__':
         return 0
 
 
-    pd.options.display.width = None
-    pd.options.display.max_columns = 15
-
     # cleaning outputs folder
     files = glob.glob('outputs/*.*')
     nl = '\n'
@@ -48,7 +48,7 @@ if __name__ == '__main__':
         os.remove(f)
 
     # reading raw data
-    data_raw = hf.read_data(path, train=CFG.train, sample=CFG.sample, cust_ratio=0.01)
+    data_raw = hf.read_data(path, train=CFG.train, sample=CFG.sample, cust_ratio=0.1)
 
     # dropping some columns
     cols_to_drop = ['D_88', 'D_110', 'B_39', 'D_73', 'B_42', 'D_88', 'D_77', 'D_139', 'D_141', 'D_143', 'D_110', 'B_1']

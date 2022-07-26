@@ -8,7 +8,10 @@ def create_final(train=True, sample=False):
     pd.options.display.max_columns = 25
 
     if train:
-        data = pd.read_csv('data/train_labels.csv').set_index('customer_ID')
+        if sample:
+            data = pd.read_csv('outputs/cust_ids.csv').set_index('customer_ID')
+        else:
+            data = pd.read_csv('data/train_labels.csv').set_index('customer_ID')
     else:
         if sample:
             data = pd.read_csv('outputs/cust_ids.csv').set_index('customer_ID')
@@ -29,7 +32,7 @@ def create_final(train=True, sample=False):
         print(data.shape)
 
     # join all csv data files (not customer IDs reference one)
-    csv_files = glob.glob('outputs/df_*.csv')
+    # csv_files = glob.glob('outputs/df_*.csv')
     df_date = pd.read_csv('outputs/df_date.csv')
     data = pd.concat([data, df_date.set_index('customer_ID')], axis=1, join='outer')
     print(data.shape)
@@ -42,7 +45,7 @@ def create_final(train=True, sample=False):
     data = pd.concat([data, df_nums.set_index('customer_ID')], axis=1, join='outer')
     print(data.shape)
 
-    print(data.describe())
+    print(data.head())
     if train:
         data.to_parquet('outputs/final_dfs/train_df.parquet')
     else:
@@ -52,12 +55,16 @@ def create_final(train=True, sample=False):
 def check_readiness():
     names = [os.path.basename(x) for x in glob.glob('outputs/final_dfs/*')]
     print(f'Files found: {names}')
+    if len(names) != 2:
+        print('Wrong number of files!')
+        return -1
     tmp_df = pd.read_parquet('outputs/final_dfs/train_df.parquet')
     train_cols = tmp_df.columns
     print(f'Columns in a training set: {len(train_cols)}')
+    print(tmp_df.head(10))
+    del tmp_df
 
     tmp_df = pd.read_parquet('outputs/final_dfs/test_df.parquet')
     test_cols = tmp_df.columns
     print(f'Columns in a testing set: {len(test_cols)}')
-
     del tmp_df
