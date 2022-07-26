@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+/src/data/test.parquet
+/src/data/train.parquet
+/src/outputs/final_dfs/test_df.parquet
+/src/outputs/final_dfs/train_df.parquet
