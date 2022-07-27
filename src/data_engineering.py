@@ -11,8 +11,8 @@ if __name__ == '__main__':
     pd.options.display.max_columns = 15
 
     class CFG:
-        train = True
-        sample = True
+        train = False
+        sample = False
 
     if CFG.train:
         path = 'data/train.parquet'
@@ -48,7 +48,7 @@ if __name__ == '__main__':
         os.remove(f)
 
     # reading raw data
-    data_raw = hf.read_data(path, train=CFG.train, sample=CFG.sample, cust_ratio=0.1)
+    data_raw = hf.read_data(path, train=CFG.train, sample=CFG.sample, cust_ratio=0.08)
 
     # dropping some columns
     cols_to_drop = ['D_88', 'D_110', 'B_39', 'D_73', 'B_42', 'D_88', 'D_77', 'D_139', 'D_141', 'D_143', 'D_110', 'B_1']
@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     # creating lists of various column types
     cat_features = ['B_30', 'B_38', 'D_63', 'D_64', 'D_66', 'D_68', 'D_114', 'D_116', 'D_117', 'D_120', 'D_126']
-    num_features = [c for c in data_raw.columns if c not in cat_features+['customer_ID']]
+    num_features = [c for c in data_raw.columns if c not in cat_features+['customer_ID', 'S_2']]
 
     payment_cols = [col for col in list(data_raw.columns) if 'P_' in col]
     delinquency_cols = [col for col in list(data_raw.columns) if 'D_' in col]

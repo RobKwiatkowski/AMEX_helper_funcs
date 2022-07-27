@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import joblib
 from sklearn.model_selection import StratifiedKFold
-from sklearn.preprocessing import LabelEncoder
 import lightgbm as lgb
 
 pd.set_option('display.max_rows', 500)
@@ -76,7 +75,7 @@ def run_lgbm(train, test):
         'lambda_l2': 2,
         'min_data_in_leaf': 40,
     }
-    # Create a numpy array to store test predictions
+    # Create a numpy array to store test predictions from every fold
     test_predictions = np.zeros(len(test))
     # Create a numpy array to store out of folds predictions
     oof_predictions = np.zeros(len(train))
@@ -133,14 +132,5 @@ train_df = pd.read_parquet(CFG.input_dir + 'train_df.parquet')
 print("Training data read")
 test_df = pd.read_parquet(CFG.input_dir + 'test_df.parquet')
 print("Testing data read")
-
-# Label encode categorical features
-# print('Encoding categorical data')
-# cat_features = ["B_30", "B_38", "D_114", "D_116", "D_117", "D_120", "D_126", "D_63", "D_64", "D_66", "D_68"]
-
-# for cat_col in cat_features:
-#     encoder = LabelEncoder()
-#     # train_df[cat_col] = encoder.fit_transform(train_df[cat_col])
-#     test_df[cat_col] = encoder.transform(test_df[cat_col])
 
 run_lgbm(train_df, test_df)
