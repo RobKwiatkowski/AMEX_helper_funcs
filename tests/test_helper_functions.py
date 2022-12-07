@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.helper_functions import prepare_chunks_cust
+from src.helper_functions import prepare_chunks_cust, nans_per_cust
 
 
 def test_prepare_chunks_cust():

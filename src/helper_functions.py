@@ -1,26 +1,31 @@
 import pandas as pd
 import numpy as np
 import gc
+
 from multiprocessing import Pool, cpu_count
 from itertools import repeat
 
 
-def read_data(path, train=True, sample=False, cust_ratio=0.2):
-    """
+def read_data(path: str, train: bool = True, sample: bool = False, cust_ratio: int = 0.2) -> pd.DataFrame:
+    """ Reads raw data and prepares the panda's DataFrame, samples data if required
+
     args:
-        path: string
-        train: bool, True if to read a train file
-        sample: bool,  True if to draw a sample
-        cust_ratio: float,  a ratio of customers to be sampled
+        path: path to the file with raw data
+        train: True if to read a train file
+        sample: True if to draw a sample
+        cust_ratio: a ratio of customers to be sampled from the raw data
+
+    return:
+        df: panda's Dataframe
     """
 
     df = pd.read_parquet(path)
     if sample:
         n_customers = df['customer_ID'].nunique()
-        no_of_cust = int(n_customers * cust_ratio)
-        cust_ids = np.random.choice(df['customer_ID'].unique(), no_of_cust)
+        sampled_no_of_cust = int(n_customers * cust_ratio)
+        cust_ids = np.random.choice(df['customer_ID'].unique(), sampled_no_of_cust)
         df = df[df['customer_ID'].isin(cust_ids)]
-        print(f'Customers in sampled database: {no_of_cust}')
+        print(f'Customers in sampled database: {sampled_no_of_cust}')
         print(f'Rows in sampled database: {df.shape[0]}')
     else:
         if train:
@@ -32,53 +37,53 @@ def read_data(path, train=True, sample=False, cust_ratio=0.2):
     return df
 
 
-def prepare_chunks_cust(df, columns, n_chunks=12):
-    """
-    Prepares chunks by customers
+def prepare_chunks_cust(df: pd.DataFrame, columns: list, n_chunks: int = 12) -> list:
+    """ Prepares chunks for multiprocessing grouped by customers
     args:
-        df: pandas dataframe
-        columns: columns to be used
+        df: pandas dataframe containing customer ID's
+        columns: list of columns to be used
         n_chunks: number of chunks to be generated
 
-    :return: list of pandas dataframes
+    return: list of pandas dataframes
     """
     cust_unique_ids = df['customer_ID'].unique()
     cust_ids_split = np.array_split(cust_unique_ids, n_chunks)
-    ready_chunks = []
 
-    for c_ids in cust_ids_split:
-        sub = df[df['customer_ID'].isin(c_ids)][columns]
-        ready_chunks.append(sub)
+    ready_chunks = []
+    for cust_ids in cust_ids_split:
+        subset = df[df['customer_ID'].isin(cust_ids)][columns]
+        ready_chunks.append(subset)
+
     return ready_chunks
 
 
-def _ewmt(chunk, periods):
-    """
-    Calculates EWM for a chunk
+def _ewmt(chunk: pd.DataFrame, periods: list) -> pd.DataFrame:
+    """ Calculates Exponential Weighted Mean for a chunk
+
     Args:
         chunk: pandas database
         periods: list, periods of halflife value
 
     Returns: pandas dataframe
-
     """
     results = []
     cust_ids = chunk['customer_ID']
-    for t in periods:
-        chunk = chunk.ewm(halflife=t).mean()
-        chunk = chunk.add_suffix(f'ewm{t}')
+    for hl in periods:
+        chunk = chunk.ewm(halflife=hl).mean()
+        chunk = chunk.add_suffix(f'ewm{hl}')
         ids_chunk = pd.concat([cust_ids, chunk], axis=1)
-        results.append(ids_chunk.set_index('customer_ID'))
+        results.append(ids_chunk.set_index('customer_ID'))  # change to concat()
     df = pd.concat(results, axis=1)
+
     return df
 
 
-def calc_ewm(chunks, periods=(2, 4)):
-    """
-    Calculates EWM
+def calc_ewm(chunks: list, periods: tuple = (2, 4)) -> pd.DataFrame:
+    """ Calculates EWM
+
     Args:
-        chunks: list, contains pandas dataframes
-        periods: list, contains periods for EWM
+        chunks: list containing pandas dataframes
+        periods: list containing periods for EWM
 
     Returns: pandas dataframe
     """
@@ -93,32 +98,32 @@ def calc_ewm(chunks, periods=(2, 4)):
     del ewm_results
     final = final.groupby("customer_ID").agg(['mean', 'std', 'min', 'max', 'last'])
     final.columns = ['_'.join(x) for x in final.columns]
+
     return final
 
 
-def _cat_stat(df):
-    """
-    Calculates categorical statistics for a chunk
+def _cat_stat(df: pd.DataFrame, cat_features: list, stats: list = ('count', 'first', 'nunique')) -> pd.DataFrame:
+    """ Calculates categorical statistics for a chunk
+
     Args:
         df: pandas dataframe
+        cat_features: list of categorical columns
+        stats: stats to be calculated
 
     Returns: pandas dataframe with statistics
-
     """
-    cat_features = ['B_30', 'B_38', 'D_63', 'D_64', 'D_66', 'D_68', 'D_114', 'D_116', 'D_117', 'D_120', 'D_126']
-    data_cat_agg = df.groupby("customer_ID")[cat_features].agg(['count', 'first', 'last', 'nunique'])
+    data_cat_agg = df.groupby("customer_ID")[cat_features].agg(stats)
     data_cat_agg.columns = ['_'.join(x) for x in data_cat_agg.columns]
     return data_cat_agg
 
 
-def calc_categorical_stats(chunks):
-    """
-    Calculates categorical statistics for all chunks
+def calc_categorical_stats(chunks: list) -> pd.DataFrame:
+    """ Calculates categorical statistics for all chunks
+
     Args:
         chunks: list of pandas dataframe
 
     Returns: pandas dataframe with calculated statistics
-
     """
     p2 = Pool(cpu_count())
     results = p2.map(_cat_stat, chunks)
@@ -129,7 +134,7 @@ def calc_categorical_stats(chunks):
     return results
 
 
-def prepare_date_features(df):
+def prepare_date_features(df: pd.DataFrame) -> pd.DataFrame:
     def _take_first_col(series): return series.values[0]
 
     def _last_2(series): return series.values[-2] if len(series.values) >= 2 else -127
@@ -194,12 +199,13 @@ def prepare_date_features(df):
 def _calc_num(chunk, stats):
     final = chunk.groupby("customer_ID").agg(stats)
     final.columns = ['_'.join(x) for x in final.columns]
+
     return final
 
 
-def calc_numerical_stats(chunks, stats=('min', 'max', 'mean')):
-    """
-    Calculates categorical statistics for all chunks
+def calc_numerical_stats(chunks: list, stats: list = ('min', 'max', 'mean', 'median')):
+    """ Calculates categorical statistics for all chunks
+
     Args:
         chunks: list of pandas dataframe
         stats: aggregate statistics to be used
@@ -212,55 +218,78 @@ def calc_numerical_stats(chunks, stats=('min', 'max', 'mean')):
     p3.close()
     p3.join()
     r = pd.concat(r)
+
     return r
 
 
-def sum_common_cols(df):
-    """
-
+def sum_common_cols(df: pd.DataFrame, cat_features: list) -> pd.DataFrame:
+    """ Calculates statistics of columns belonging to the same category
     Args:
-        df: Pandas Dataframe
+        df: Pandas Dataframe with raw data
+        cat_features: list of categorical columns
 
-    Returns:
-
+    Returns: Pandas DataFrame with calculated statistics per type of columns
     """
-    cat_features = ['B_30', 'B_38', 'D_63', 'D_64', 'D_66', 'D_68', 'D_114', 'D_116', 'D_117', 'D_120', 'D_126']
+    # filter out all numeric data
     num_cols = [c for c in df.columns if c not in cat_features + ['customer_ID']]
+
     del_cols = [c for c in num_cols if (c.startswith("D"))]
     pay_cols = [c for c in num_cols if (c.startswith("P"))]
     bal_cols = [c for c in num_cols if (c.startswith("B"))]
     ris_cols = [c for c in num_cols if (c.startswith("R"))]
     spe_cols = [c for c in num_cols if (c.startswith("S"))]
-    "A function calculating all numerics per category for each customer"
-    df['balance_sum'] = df[[i for i in bal_cols]].sum(axis=1)
-    df['delinquent_sum'] = df[[i for i in del_cols]].sum(axis=1)
-    df['spend_sum'] = df[[i for i in spe_cols]].sum(axis=1)
-    df['payment_sum'] = df[[i for i in pay_cols]].sum(axis=1)
-    df['risk_sum'] = df[[i for i in ris_cols]].sum(axis=1)
+
+    df['balance_sum'] = df[[i for i in bal_cols]].sum(numeric_only=True, axis=1)
+    df['delinquent_sum'] = df[[i for i in del_cols]].sum(numeric_only=True, axis=1)
+    df['spend_sum'] = df[[i for i in spe_cols]].sum(numeric_only=True, axis=1)
+    df['payment_sum'] = df[[i for i in pay_cols]].sum(numeric_only=True, axis=1)
+    df['risk_sum'] = df[[i for i in ris_cols]].sum(numeric_only=True, axis=1)
+
     return df[['customer_ID', 'balance_sum', 'delinquent_sum',
                'spend_sum', 'payment_sum', 'risk_sum']].groupby('customer_ID').sum()
 
 
-# def round():
-#     num_cols = list(train.dtypes[(train.dtypes == 'float32') | (train.dtypes == 'float64')].index)
-#     num_cols = [col for col in num_cols if 'last' in col]
-#     for col in num_cols:
-#         train[col + '_round2'] = train[col].round(2)
-#         test[col + '_round2'] = test[col].round(2)
-#
-#
-# def get_differences():
-#     num_cols = [col for col in train.columns if 'last' in col]
-#     num_cols = [col[:-5] for col in num_cols if 'round' not in col]
-#     for col in num_cols:
-#         try:
-#             train[f'{col}_last_mean_diff'] = train[f'{col}_last'] - train[f'{col}_mean']
-#             test[f'{col}_last_mean_diff'] = test[f'{col}_last'] - test[f'{col}_mean']
-#         except:
-#             pass
-#
-# def transform_floats():
-#     num_cols = list(train.dtypes[(train.dtypes == 'float32') | (train.dtypes == 'float64')].index)
-#     for col in tqdm(num_cols):
-#         train[col] = train[col].astype(np.float16)
-#         test[col] = test[col].astype(np.float16)
+def nans_per_cust(df):
+    nan_df = df.drop('customer_ID', axis=1).isna().groupby(df['customer_ID'], sort=False).sum().add_suffix('_col')
+    nan_df.reset_index(inplace=True)
+    nan_df.set_index('customer_ID', inplace=True)
+    df2 = nan_df.sum(axis=1)
+    nan_by_customer = pd.DataFrame(df2)
+    nan_by_customer = nan_by_customer.rename(columns={0: 'by_cust_ID_NAN'})
+    return nan_by_customer
+
+
+def amex_metric(y_true, y_pred):
+    labels = np.transpose(np.array([y_true, y_pred]))
+    labels = labels[labels[:, 1].argsort()[::-1]]
+    weights = np.where(labels[:, 0] == 0, 20, 1)
+    cut_vals = labels[np.cumsum(weights) <= int(0.04 * np.sum(weights))]
+    top_four = np.sum(cut_vals[:, 0]) / np.sum(labels[:, 0])
+    gini = [0, 0]
+    for i in [1, 0]:
+        labels = np.transpose(np.array([y_true, y_pred]))
+        labels = labels[labels[:, i].argsort()[::-1]]
+        weight = np.where(labels[:, 0] == 0, 20, 1)
+        weight_random = np.cumsum(weight / np.sum(weight))
+        total_pos = np.sum(labels[:, 0] * weight)
+        cum_pos_found = np.cumsum(labels[:, 0] * weight)
+        lorentz = cum_pos_found / total_pos
+        gini[i] = np.sum((lorentz - weight_random) * weight)
+    return 0.5 * (gini[1] / gini[0] + top_four)
+
+
+def ab_features(df):
+    df.reset_index(inplace=True, drop=False)
+    df = df.rename(columns={'index': 'row_id'})
+    for b_col in [f'B_{i}' for i in [11, 14, 17]] + ['D_39', 'D_131'] + [f'S_{i}' for i in [16, 23]]:
+        for p_col in ['P_2', 'P_3']:
+            if b_col in df.columns:
+                df[f'{b_col}-{p_col}' + '_AB'] = df[b_col] - df[p_col]
+    df = df.sort_values('row_id')
+    df = df.drop(['row_id'], axis=1)
+    return df
+
+
+def calculate_correlations(df):
+    return 0
+

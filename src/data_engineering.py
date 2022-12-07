@@ -1,3 +1,23 @@
+def ewm(cols_to_use, parallel=True, periods=(2, 4)):
+    ewm_cols = [c for c in cols_to_use if c in num_features]
+    print(f'Number of columns for EWMs: {len(ewm_cols)}')
+    if parallel:
+        for i, split_cols in enumerate(np.array_split(ewm_cols, 4)):
+            split_cols = list(split_cols)
+            split_cols.insert(0, 'customer_ID')  # customer_ID should always be in a chunk
+            chunks = hf.prepare_chunks_cust(data_raw, split_cols, n_chunks=6)
+            df_ewms = hf.calc_ewm(chunks, periods=periods)
+            df_ewms.reset_index(inplace=True)
+            print(f'writing EWMs{i} data...')
+            df_ewms.to_parquet(f'outputs/df_ewm{i}.parquet')
+    else:
+        cols_to_use.insert(0, 'customer_ID')
+        results = hf.calc_ewm(cols_to_use, periods=periods)
+        results.to_parquet(f'outputs/df_ewm.parquet')
+
+    return 0
+
+
 if __name__ == '__main__':
     import glob
     import os
@@ -11,34 +31,13 @@ if __name__ == '__main__':
     pd.options.display.max_columns = 15
 
     class CFG:
-        train = False
+        train = True
         sample = False
 
     if CFG.train:
         path = 'data/train.parquet'
     else:
         path = 'data/test.parquet'
-
-
-    def ewm(cols_to_use, parallel=True, periods=(2, 4)):
-        ewm_cols = [c for c in cols_to_use if c in num_features]
-        print(f'Number of columns for EWMs: {len(ewm_cols)}')
-        if parallel:
-            for i, split_cols in enumerate(np.array_split(ewm_cols, 4)):
-                split_cols = list(split_cols)
-                split_cols.insert(0, 'customer_ID')  # customer_ID should always be in a chunk
-                chunks = hf.prepare_chunks_cust(data_raw, split_cols, n_chunks=6)
-                df_ewms = hf.calc_ewm(chunks, periods=periods)
-                df_ewms.reset_index(inplace=True)
-                print(f'writing EWMs{i} data...')
-                df_ewms.to_parquet(f'outputs/df_ewm{i}.parquet')
-        else:
-            cols_to_use.insert(0, 'customer_ID')
-            results = hf.calc_ewm(cols_to_use, periods=periods)
-            results.to_parquet(f'outputs/df_ewm.parquet')
-
-        return 0
-
 
     # cleaning outputs folder
     files = glob.glob('outputs/*.*')
@@ -48,7 +47,7 @@ if __name__ == '__main__':
         os.remove(f)
 
     # reading raw data
-    data_raw = hf.read_data(path, train=CFG.train, sample=CFG.sample, cust_ratio=0.08)
+    data_raw = hf.read_data(path, train=CFG.train, sample=CFG.sample, cust_ratio=0.2)
 
     # dropping some columns
     cols_to_drop = ['D_88', 'D_110', 'B_39', 'D_73', 'B_42', 'D_88', 'D_77', 'D_139', 'D_141', 'D_143', 'D_110', 'B_1']
@@ -81,25 +80,32 @@ if __name__ == '__main__':
 
     # categorical stats
     chunks_to_process = hf.prepare_chunks_cust(data_raw, ['customer_ID']+cat_features)
-    df_cats = hf.calc_categorical_stats(chunks_to_process)
+    df = hf.calc_categorical_stats(chunks_to_process)
     print('Writing categorical stats...')
-    df_cats.to_csv('outputs/df_cats.csv')
-    del df_cats
+    df.to_csv('outputs/df_cats.csv')
+    del df
     gc.collect()
 
     # numerical stats
     chunks_to_use = hf.prepare_chunks_cust(data_raw, ['customer_ID']+num_features)
-    df_nums = hf.calc_numerical_stats(chunks_to_use, stats=['min', 'max', 'mean'])
+    df = hf.calc_numerical_stats(chunks_to_use, stats=['min', 'max', 'mean'])
     print('Writing numerical stats...')
-    df_nums.to_csv('outputs/df_nums.csv')
-    del df_nums
+    df.to_csv('outputs/df_nums.csv')
+    del df
     gc.collect()
 
     # columns summation
-    df_sums = hf.sum_common_cols(data_raw)
+    df = hf.sum_common_cols(data_raw)
     print('Writing columns summations...')
-    df_sums.to_csv('outputs/df_sums.csv')
-    del df_sums
+    df.to_csv('outputs/df_sums.csv')
+    del df
+    gc.collect()
+
+    # nan per customer summation
+    df = hf.sum_common_cols(data_raw)
+    print('Writing nan per customer...')
+    df.to_csv('outputs/df_nans.csv')
+    del df
     gc.collect()
 
     create_final(train=CFG.train)

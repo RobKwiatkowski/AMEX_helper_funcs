@@ -1,3 +1,9 @@
+# raw data
+data/test.parquet
+data/train.parquet
+
+catboost_info/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -135,3 +141,4 @@ dmypy.json
 /src/outputs/df_date.csv
 /src/outputs/df_nums.csv
 /src/outputs/df_sums.csv
+/src/outputs/df_nans.csv
