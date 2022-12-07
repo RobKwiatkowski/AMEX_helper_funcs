@@ -2,6 +2,7 @@
 data/test.parquet
 data/train.parquet
 
+.idea/
 catboost_info/
 
 # Byte-compiled / optimized / DLL files
